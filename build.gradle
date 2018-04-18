@@ -1,0 +1,31 @@
+plugins {
+    id 'org.jetbrains.intellij'
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+apply plugin: 'kotlin'
+
+sourceCompatibility = '1.8'
+targetCompatibility = '1.8'
+
+compileKotlin {
+    kotlinOptions {
+        languageVersion = '1.2'
+        apiVersion = '1.2'
+    }
+}
+
+classes.doFirst { new File("$buildDir/classes/java/main").mkdirs() }
+testClasses.doFirst { new File("$buildDir/classes/java/test").mkdirs() }
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile 'com.squareup:kotlinpoet:0.7.0'
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '4.3'
+}
