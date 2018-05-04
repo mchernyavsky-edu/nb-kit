@@ -35,17 +35,18 @@ import org.nbkit.common.resolve.OverridingScope
 import org.nbkit.common.resolve.Scope
 import java.nio.file.Path
 import java.nio.file.Paths
+import kotlin.reflect.KClass
 
-class NameBindingSpecification(
+class NameBindingSpec(
         private val fileNamePrefix: String,
         private val basePackageName: String,
-        private val typeNameProvider: Map<String, TypeName>,
-        private val genPath: Path = Paths.get("src/gen2")
+        private val genPath: Path = Paths.get("src/gen_nb")
 ) {
     // Basic
     private val elementClass = ClassName("$basePackageName.psi.ext", "${fileNamePrefix}Element")
     private val elementImplClass = ClassName("$basePackageName.psi.ext", "${fileNamePrefix}ElementImpl")
     private val elementTypesClass = ClassName("$basePackageName.psi", "${fileNamePrefix}ElementTypes")
+    private val tokenTypeClass = ClassName("$basePackageName.psi", "${fileNamePrefix}TokenType")
     private val referenceElementClass = ClassName("$basePackageName.psi.ext", "${fileNamePrefix}ReferenceElement")
     private val namedElementClass = ClassName("$basePackageName.psi.ext", "${fileNamePrefix}NamedElement")
     private val languageClass = ClassName(basePackageName, "${fileNamePrefix}Language")
@@ -53,6 +54,8 @@ class NameBindingSpecification(
     private val namesValidatorClass = ClassName("$basePackageName.refactoring", "${fileNamePrefix}NamesValidator")
     private val wordScannerClass = ClassName("$basePackageName.search", "${fileNamePrefix}WordScanner")
     private val psiFactoryClass = ClassName("$basePackageName.psi", "${fileNamePrefix}PsiFactory")
+    private val navigationContributorBaseClass = ClassName("$basePackageName.navigation", "${fileNamePrefix}NavigationContributorBase")
+    private val getPresentationFunction = ClassName("$basePackageName.navigation", "getPresentation")
 
     // Resolve
     private val referenceClass = ClassName("$basePackageName.resolve", "${fileNamePrefix}Reference")
@@ -63,14 +66,12 @@ class NameBindingSpecification(
     private val fileStubClass = ClassName("$basePackageName.psi.stubs", "${fileNamePrefix}FileStub")
     private val stubElementTypeClass = ClassName("$basePackageName.psi.stubs", "${fileNamePrefix}StubElementType")
     private val namedStubClass = ClassName("$basePackageName.psi.stubs", "${fileNamePrefix}NamedStub")
-    private val moduleStubClass = ClassName("$basePackageName.psi.stubs", "${fileNamePrefix}ModuleStub")
-    private val variableStubClass = ClassName("$basePackageName.psi.stubs", "${fileNamePrefix}VariableStub")
     private val stubbedElementImplClass = ClassName("$basePackageName.psi.ext", "${fileNamePrefix}StubbedElementImpl")
 
     // Indexes
+    private val namedElementIndexClass = ClassName("$basePackageName.psi.stubs.index", "${fileNamePrefix}NamedElementIndex")
     private val definitionIndexClass = ClassName("$basePackageName.psi.stubs.index", "${fileNamePrefix}DefinitionIndex")
     private val gotoClassIndexClass = ClassName("$basePackageName.psi.stubs.index", "${fileNamePrefix}GotoClassIndex")
-    private val namedElementIndexClass = ClassName("$basePackageName.psi.stubs.index", "${fileNamePrefix}NamedElementIndex")
 
     // Files
     private val fileClass = ClassName("$basePackageName.psi", "${fileNamePrefix}File")
@@ -78,30 +79,12 @@ class NameBindingSpecification(
     private val fileWrapperClass = ClassName("$basePackageName.psi", "${fileNamePrefix}FileWrapper")
     private val directoryWrapperClass = ClassName("$basePackageName.psi", "${fileNamePrefix}DirectoryWrapper")
 
-    // Generics
-    private val variableType = TypeVariableName("T")
-    private val stubType = TypeVariableName("StubT")
-    private val psiType = TypeVariableName("PsiT")
-    private val defType = TypeVariableName("DefT")
+    private val scopeRules: MutableList<ScopeRule> = mutableListOf()
 
-    // Extensions
-    private val ancestorsFunction = ClassName("org.nbkit.common.psi.ext", "ancestors")
-    private val parentOfTypeFunction = ClassName("org.nbkit.common.psi.ext", "parentOfType")
-    private val prevSiblingOfTypeFunction = ClassName("org.nbkit.common.psi.ext", "prevSiblingOfType")
-    private val elementTypeProperty = ClassName("org.nbkit.common.psi.ext", "elementType")
-    private val childOfTypeFunction = ClassName("org.nbkit.common.psi.ext", "childOfType")
-    private val getPresentationFunction = ClassName("$basePackageName.navigation", "getPresentation")
-    private val moduleFunction = ClassName("$basePackageName.navigation", "module")
-    private val fullNameFunction = ClassName("$basePackageName.navigation", "fullName")
-
-    // Tokens
-    private val idClass = ClassName("$basePackageName.psi.${fileNamePrefix}ElementTypes", "ID")
-    private val idsClass = ClassName("$basePackageName.psi", "${fileNamePrefix.toUpperCase()}_IDS")
-    private val keywordsClass = ClassName("$basePackageName.psi", "${fileNamePrefix.toUpperCase()}_KEYWORDS")
-    private val commentsClass = ClassName("$basePackageName.psi", "${fileNamePrefix.toUpperCase()}_COMMENTS")
-    private val literalsClass = ClassName("$basePackageName.psi", "${fileNamePrefix.toUpperCase()}_LITERALS")
-
-    private val navigationContributorBaseClass = ClassName("$basePackageName.navigation", "${fileNamePrefix}NavigationContributorBase")
+    fun addScopeRule(scopeRule: ScopeRule): NameBindingSpec {
+        scopeRules.add(scopeRule)
+        return this
+    }
 
     fun generate() {
         generatePsi()
@@ -115,7 +98,6 @@ class NameBindingSpecification(
         generateExt()
         generateFileWrapper()
         generateDirectoryWrapper()
-        generatePsiFactory()
         generateStubs()
     }
 
@@ -125,8 +107,11 @@ class NameBindingSpecification(
         generateReferenceElement()
         generateIdentifiers()
 //        generateDefinition()
-        generateDefinitionImplementation("Module")
-        generateDefinitionImplementation("Variable")
+        for (scopeRule in scopeRules) {
+            if (scopeRule.isDefinition) {
+                generateDefinitionImplementation(scopeRule.klass.asClassName())
+            }
+        }
     }
 
     private fun generateElement() {
@@ -224,7 +209,26 @@ class NameBindingSpecification(
                         .addModifiers(KModifier.OVERRIDE)
                         .addParameter("name", String::class)
                         .returns(PsiElement::class.asTypeName().asNullable())
-                        .addStatement("nameIdentifier?.replace(%T(project).createDefinitionId(name))", psiFactoryClass)
+                        .addStatement("val factory = %T(project)", psiFactoryClass)
+                        .addCode(
+                                buildString {
+                                    append("val newNameIdentifier = when (nameIdentifier) {\n")
+                                    for (scopeRule in scopeRules) {
+                                        if (scopeRule.isReferable || scopeRule.isReference) {
+                                            val className = scopeRule.klass.asClassName()
+                                            append("    is %T -> factory.create${className.commonName}(name)\n")
+                                        }
+                                    }
+                                    append("    else -> return this\n")
+                                    append("}")
+                                }.trimMargin(),
+                                *scopeRules
+                                        .filter { it.isReferable || it.isReference }
+                                        .map { it.klass.asClassName() }
+                                        .toTypedArray()
+                        )
+                        .addStatement("")
+                        .addStatement("nameIdentifier?.replace(newNameIdentifier)")
                         .addStatement("return this")
                         .build())
                 .addFunction(FunSpec.builder("getNavigationElement")
@@ -284,7 +288,26 @@ class NameBindingSpecification(
                         .addModifiers(KModifier.OVERRIDE)
                         .addParameter("name", String::class)
                         .returns(PsiElement::class.asTypeName().asNullable())
-                        .addStatement("nameIdentifier?.replace(${fileNamePrefix}PsiFactory(project).createDefinitionId(name))")
+                        .addStatement("val factory = %T(project)", psiFactoryClass)
+                        .addCode(
+                                buildString {
+                                    append("val newNameIdentifier = when (nameIdentifier) {\n")
+                                    for (scopeRule in scopeRules) {
+                                        if (scopeRule.isReferable || scopeRule.isReference) {
+                                            val className = scopeRule.klass.asClassName()
+                                            append("    is %T -> factory.create${className.commonName}(name)\n")
+                                        }
+                                    }
+                                    append("    else -> return this\n")
+                                    append("}\n\n")
+                                }.trimMargin(),
+                                *scopeRules
+                                        .filter { it.isReferable || it.isReference }
+                                        .map { it.klass.asClassName() }
+                                        .toTypedArray()
+                        )
+                        .addStatement("")
+                        .addStatement("nameIdentifier?.replace(newNameIdentifier)")
                         .addStatement("return this")
                         .build())
                 .addFunction(FunSpec.builder("getNavigationElement")
@@ -326,93 +349,99 @@ class NameBindingSpecification(
     }
 
     private fun generateIdentifiers() {
-        val definitionIdImplMixinSpec = TypeSpec.classBuilder("${fileNamePrefix}DefinitionIdImplMixin")
-                .addModifiers(KModifier.ABSTRACT)
-                .addSuperinterface(typeNameProvider["LmDefinitionId"]!!)
-                .superclass(elementImplClass)
-                .primaryConstructor(FunSpec.constructorBuilder()
-                        .addParameter("node", ASTNode::class)
-                        .build())
-                .addSuperclassConstructorParameter("node")
-                .addProperty(PropertySpec.builder(
-                        "referenceNameElement",
-                        ClassName("$basePackageName.psi.ext", "${fileNamePrefix}DefinitionIdImplMixin"),
-                        KModifier.OVERRIDE)
-                        .getter(FunSpec.getterBuilder().addStatement("return this").build())
-                        .build())
-                .addProperty(PropertySpec.builder(
-                        "referenceName",
-                        String::class,
-                        KModifier.OVERRIDE)
-                        .getter(FunSpec.getterBuilder().addStatement("return referenceNameElement.text").build())
-                        .build())
-                .addFunction(FunSpec.builder("getName")
-                        .addModifiers(KModifier.OVERRIDE)
-                        .returns(String::class)
-                        .addStatement("return referenceName")
-                        .build())
-                .build()
-        val qualifiedIdPartImplMixinSpec = TypeSpec.classBuilder("${fileNamePrefix}QualifiedIdPartImplMixin")
-                .addModifiers(KModifier.ABSTRACT)
-                .addSuperinterface(typeNameProvider["LmQualifiedIdPart"]!!)
-                .superclass(elementImplClass)
-                .primaryConstructor(FunSpec.constructorBuilder()
-                        .addParameter("node", ASTNode::class)
-                        .build())
-                .addSuperclassConstructorParameter("node")
-                .addProperty(PropertySpec.builder(
-                        "scope",
-                        Scope::class)
-                        .getter(FunSpec.getterBuilder().addStatement("return %T.getScope(this)", scopeProviderClass).build())
-                        .build())
-                .addProperty(PropertySpec.builder(
-                        "referenceNameElement",
-                        elementClass,
-                        KModifier.OVERRIDE)
-                        .getter(FunSpec.getterBuilder().addStatement("return this").build())
-                        .build())
-                .addProperty(PropertySpec.builder(
-                        "referenceName",
-                        String::class,
-                        KModifier.OVERRIDE)
-                        .getter(FunSpec.getterBuilder().addStatement("return text").build())
-                        .build())
-                .addFunction(FunSpec.builder("getName")
-                        .addModifiers(KModifier.OVERRIDE)
-                        .returns(String::class)
-                        .addStatement("return referenceName")
-                        .build())
-                .addFunction(FunSpec.builder("getReference")
-                        .addModifiers(KModifier.OVERRIDE)
-                        .returns(referenceClass)
-                        .addStatement("return ${fileNamePrefix}IdReference()")
-                        .build())
-                .addType(TypeSpec.classBuilder("${fileNamePrefix}IdReference")
-                        .addModifiers(KModifier.PRIVATE)
-                        .addModifiers(KModifier.INNER)
-                        .superclass(ParameterizedTypeName.get(
-                                ClassName("$basePackageName.resolve", "${fileNamePrefix}ReferenceBase"),
-                                ClassName("$basePackageName.psi", "${fileNamePrefix}QualifiedIdPart")
-                        ))
-                        .addSuperclassConstructorParameter("this@${fileNamePrefix}QualifiedIdPartImplMixin")
-                        .addFunction(FunSpec.builder("resolve")
-                                .addModifiers(KModifier.OVERRIDE)
-                                .returns(PsiElement::class.asClassName().asNullable())
-                                .addStatement("return scope.resolve(name)")
-                                .build())
-                        .addFunction(FunSpec.builder("getVariants")
-                                .addModifiers(KModifier.OVERRIDE)
-                                .returns(ParameterizedTypeName.get(Array<Any>::class.asClassName(), ANY))
-                                .addStatement("return scope.symbols.toTypedArray()")
-                                .build())
-                        .build())
-                .build()
-
         val file = FileSpec.builder("$basePackageName.psi.ext", "${fileNamePrefix}Identifiers")
-                .addType(definitionIdImplMixinSpec)
-                .addType(qualifiedIdPartImplMixinSpec)
-                .build()
-        file.writeTo(genPath)
+
+        val referableNames = scopeRules.filter { it.isReferable }.map { it.klass.asClassName() }
+        for (referableName in referableNames) {
+            TypeSpec.classBuilder("${referableName.simpleName()}ImplMixin")
+                    .addModifiers(KModifier.ABSTRACT)
+                    .addSuperinterface(referableName)
+                    .superclass(elementImplClass)
+                    .primaryConstructor(FunSpec.constructorBuilder()
+                            .addParameter("node", ASTNode::class)
+                            .build())
+                    .addSuperclassConstructorParameter("node")
+                    .addProperty(PropertySpec.builder(
+                            "referenceNameElement",
+                            ClassName("$basePackageName.psi.ext", "${referableName.simpleName()}ImplMixin"), KModifier.OVERRIDE)
+                            .getter(FunSpec.getterBuilder().addStatement("return this").build())
+                            .build())
+                    .addProperty(PropertySpec.builder(
+                            "referenceName",
+                            String::class,
+                            KModifier.OVERRIDE)
+                            .getter(FunSpec.getterBuilder().addStatement("return referenceNameElement.text").build())
+                            .build())
+                    .addFunction(FunSpec.builder("getName")
+                            .addModifiers(KModifier.OVERRIDE)
+                            .returns(String::class)
+                            .addStatement("return referenceName")
+                            .build())
+                    .build()
+                    .also { file.addType(it) }
+        }
+
+        val referenceNames = scopeRules.filter { it.isReference }.map { it.klass.asClassName() }
+        for (referenceName in referenceNames) {
+            TypeSpec.classBuilder("${referenceName.simpleName()}ImplMixin")
+                    .addModifiers(KModifier.ABSTRACT)
+                    .addSuperinterface(referenceName)
+                    .superclass(elementImplClass)
+                    .primaryConstructor(FunSpec.constructorBuilder()
+                            .addParameter("node", ASTNode::class)
+                            .build())
+                    .addSuperclassConstructorParameter("node")
+                    .addProperty(PropertySpec.builder(
+                            "scope",
+                            Scope::class)
+                            .getter(FunSpec.getterBuilder().addStatement("return %T.getScope(this)", scopeProviderClass).build())
+                            .build())
+                    .addProperty(PropertySpec.builder(
+                            "referenceNameElement",
+                            elementClass,
+                            KModifier.OVERRIDE)
+                            .getter(FunSpec.getterBuilder().addStatement("return this").build())
+                            .build())
+                    .addProperty(PropertySpec.builder(
+                            "referenceName",
+                            String::class,
+                            KModifier.OVERRIDE)
+                            .getter(FunSpec.getterBuilder().addStatement("return text").build())
+                            .build())
+                    .addFunction(FunSpec.builder("getName")
+                            .addModifiers(KModifier.OVERRIDE)
+                            .returns(String::class)
+                            .addStatement("return referenceName")
+                            .build())
+                    .addFunction(FunSpec.builder("getReference")
+                            .addModifiers(KModifier.OVERRIDE)
+                            .returns(referenceClass)
+                            .addStatement("return ${fileNamePrefix}IdReference()")
+                            .build())
+                    .addType(TypeSpec.classBuilder("${fileNamePrefix}IdReference")
+                            .addModifiers(KModifier.PRIVATE)
+                            .addModifiers(KModifier.INNER)
+                            .superclass(ParameterizedTypeName.get(
+                                    ClassName("$basePackageName.resolve", "${fileNamePrefix}ReferenceBase"),
+                                    referenceName
+                            ))
+                            .addSuperclassConstructorParameter("this@${referenceName.simpleName()}ImplMixin")
+                            .addFunction(FunSpec.builder("resolve")
+                                    .addModifiers(KModifier.OVERRIDE)
+                                    .returns(PsiElement::class.asClassName().asNullable())
+                                    .addStatement("return scope.resolve(name)")
+                                    .build())
+                            .addFunction(FunSpec.builder("getVariants")
+                                    .addModifiers(KModifier.OVERRIDE)
+                                    .returns(ParameterizedTypeName.get(Array<Any>::class.asClassName(), ANY))
+                                    .addStatement("return scope.symbols.toTypedArray()")
+                                    .build())
+                            .build())
+                    .build()
+                    .also { file.addType(it) }
+        }
+
+        file.build().writeTo(genPath)
     }
 
     private fun generateDefinition() {
@@ -451,12 +480,11 @@ class NameBindingSpecification(
         file.writeTo(genPath)
     }
 
-    private fun generateDefinitionImplementation(className: String) {
-        val stubClass = ClassName("$basePackageName.psi.stubs", "$fileNamePrefix${className}Stub")
-
-        val classMixinSpec = TypeSpec.classBuilder("$fileNamePrefix${className}Mixin")
+    private fun generateDefinitionImplementation(className: ClassName) {
+        val stubClass = ClassName("$basePackageName.psi.stubs", "${className.simpleName()}Stub")
+        val classMixinSpec = TypeSpec.classBuilder("${className.simpleName()}Mixin")
                 .addModifiers(KModifier.ABSTRACT)
-                .addSuperinterface(ClassName("$basePackageName.psi", "$fileNamePrefix$className"))
+                .addSuperinterface(className)
                 .superclass(ParameterizedTypeName.get(
                         ClassName("", "${fileNamePrefix}DefinitionMixin"),
                         stubClass
@@ -476,7 +504,7 @@ class NameBindingSpecification(
                         .build())
                 .build()
 
-        val file = FileSpec.builder("$basePackageName.psi.ext", "$fileNamePrefix$className")
+        val file = FileSpec.builder("$basePackageName.psi.ext", className.simpleName())
                 .addType(classMixinSpec)
                 .build()
         file.writeTo(genPath)
@@ -489,7 +517,31 @@ class NameBindingSpecification(
                 .primaryConstructor(FunSpec.constructorBuilder()
                         .addParameter("file", fileClass)
                         .build())
-                // TODO: getName, setName
+                .addProperty(PropertySpec.builder("file", fileClass)
+                        .initializer("file")
+                        .build())
+                .addFunction(FunSpec.builder("setName")
+                        .addModifiers(KModifier.OVERRIDE)
+                        .addParameter("name", String::class)
+                        .returns(PsiElement::class)
+                        .addCode(
+                                """
+                                    val nameWithExtension = if (name.endsWith('.' + %T.defaultExtension)) {
+                                        name
+                                    } else {
+                                        name + '.' + %T.defaultExtension
+                                    }
+
+                                """.trimIndent(),
+                                fileTypeClass, fileTypeClass
+                        )
+                        .addStatement("return file.setName(nameWithExtension)")
+                        .build())
+                .addFunction(FunSpec.builder("getName")
+                        .addModifiers(KModifier.OVERRIDE)
+                        .returns(String::class)
+                        .addStatement("return file.name.removeSuffix('.' + %T.defaultExtension)", fileTypeClass)
+                        .build())
                 .addFunction(FunSpec.builder("getReference")
                         .addModifiers(KModifier.OVERRIDE)
                         .returns(referenceClass.asNullable())
@@ -531,10 +583,6 @@ class NameBindingSpecification(
                 .addType(directoryWrapperSpec)
                 .build()
         file.writeTo(genPath)
-    }
-
-    private fun generatePsiFactory() {
-        // TODO
     }
 
     private fun generateStubs() {
@@ -632,7 +680,7 @@ class NameBindingSpecification(
     private fun generateNamedElementIndex() {
         val namedElementIndexClass = ClassName("$basePackageName.psi.stubs.index", "${fileNamePrefix}NamedElementIndex")
 
-        val gotoClassIndexSpec = TypeSpec.classBuilder("${fileNamePrefix}NamedElementIndex")
+        val namedElementIndexSpec = TypeSpec.classBuilder("${fileNamePrefix}NamedElementIndex")
                 .superclass(ParameterizedTypeName.get(StringStubIndexExtension::class.asClassName(), namedElementClass))
                 .addFunction(FunSpec.builder("getVersion")
                         .addModifiers(KModifier.OVERRIDE)
@@ -664,7 +712,7 @@ class NameBindingSpecification(
                 .build()
 
         val file = FileSpec.builder("$basePackageName.psi.stubs.index", "${fileNamePrefix}NamedElementIndex")
-                .addType(gotoClassIndexSpec)
+                .addType(namedElementIndexSpec)
                 .build()
         file.writeTo(genPath)
     }
@@ -725,10 +773,10 @@ class NameBindingSpecification(
     private fun generateStubImplementations() {
         val typeClass = ClassName("", "Type")
         val definitionStubClass = ClassName("$basePackageName.psi.stubs", "${fileNamePrefix}DefinitionStub")
-        val moduleImplClass = ClassName("$basePackageName.psi.impl", "${fileNamePrefix}ModuleImpl")
-        val variableImplClass = ClassName("$basePackageName.psi.impl", "${fileNamePrefix}VariableImpl")
 
-        val fileStubSpec = TypeSpec.classBuilder("${fileNamePrefix}FileStub")
+        val file = FileSpec.builder("$basePackageName.psi.stubs", "StubImplementations")
+
+        TypeSpec.classBuilder("${fileNamePrefix}FileStub")
                 .superclass(ParameterizedTypeName.get(PsiFileStubImpl::class.asClassName(), fileClass))
                 .primaryConstructor(FunSpec.constructorBuilder()
                         .addParameter("file", fileClass.asNullable())
@@ -792,7 +840,13 @@ class NameBindingSpecification(
                                 .build())
                         .build())
                 .build()
-        val factorySpec = FunSpec.builder("factory")
+                .also { file.addType(it) }
+
+        val stubbedClassNames = scopeRules
+                .filter { it.isStubbed }
+                .map { it.klass.asClassName() }
+
+        FunSpec.builder("factory")
                 .addParameter("name", String::class)
                 .returns(ParameterizedTypeName.get(
                         stubElementTypeClass,
@@ -800,17 +854,22 @@ class NameBindingSpecification(
                         WildcardTypeName.subtypeOf(ANY)
                 ))
                 .addStatement(
-                        """
-                            return when (name) {
-                                "MODULE" -> %T.Type
-                                "VARIABLE" -> %T.Type
-                                else -> error("Unknown element: " + name)
+                        buildString {
+                            append("return when (name) {\n")
+                            for (stubClass in stubbedClassNames) {
+                                append("    \"${stubClass.commonName.toUpperCase()}\" -> %T.Type\n")
                             }
-                        """.trimMargin(),
-                        moduleStubClass, variableStubClass
+                            append("    else -> error(\"Unknown element: \" + name)\n")
+                            append("}\n")
+                        }.trimMargin(),
+                        *stubbedClassNames
+                                .map { ClassName("$basePackageName.psi.stubs", "${it.simpleName()}Stub") }
+                                .toTypedArray()
                 )
                 .build()
-        val definitionStubSpec = TypeSpec.classBuilder("${fileNamePrefix}DefinitionStub")
+                .also { file.addFunction(it) }
+
+        TypeSpec.classBuilder("${fileNamePrefix}DefinitionStub")
                 .addModifiers(KModifier.ABSTRACT)
                 .addTypeVariable(defType.withBounds(elementClass))
                 .primaryConstructor(FunSpec.constructorBuilder()
@@ -835,199 +894,127 @@ class NameBindingSpecification(
                         .initializer("name")
                         .build())
                 .build()
-        val moduleStubSpec = TypeSpec.classBuilder("${fileNamePrefix}ModuleStub")
-                .primaryConstructor(FunSpec.constructorBuilder()
-                        .addParameter("parent", ParameterizedTypeName.get(
-                                StubElement::class.asClassName(),
-                                WildcardTypeName.subtypeOf(ANY)
-                        ).asNullable())
-                        .addParameter("elementType", ParameterizedTypeName.get(
-                                IStubElementType::class.asClassName(),
-                                WildcardTypeName.subtypeOf(ANY),
-                                WildcardTypeName.subtypeOf(ANY)
-                        ))
-                        .addParameter("name", String::class.asTypeName().asNullable())
-                        .build())
-                .superclass(ParameterizedTypeName.get(definitionStubClass, typeNameProvider["LmModule"]!!))
-                .addSuperclassConstructorParameter("parent")
-                .addSuperclassConstructorParameter("elementType")
-                .addSuperclassConstructorParameter("name")
-                .companionObject(TypeSpec.companionObjectBuilder("Type")
-                        .superclass(ParameterizedTypeName.get(
-                                stubElementTypeClass,
-                                moduleStubClass,
-                                typeNameProvider["LmModule"]!!
-                        ))
-                        .addSuperclassConstructorParameter("\"MODULE\"")
-                        .addFunction(FunSpec.builder("serialize")
-                                .addModifiers(KModifier.OVERRIDE)
-                                .addParameter("stub", moduleStubClass)
-                                .addParameter("dataStream", StubOutputStream::class)
-                                .addStatement("with(dataStream) { writeName(stub.name) }")
-                                .build())
-                        .addFunction(FunSpec.builder("deserialize")
-                                .addModifiers(KModifier.OVERRIDE)
-                                .addParameter("dataStream", StubInputStream::class)
-                                .addParameter("parentStub", ParameterizedTypeName.get(
-                                        StubElement::class.asClassName(),
-                                        WildcardTypeName.subtypeOf(ANY)
-                                ).asNullable())
-                                .returns(moduleStubClass)
-                                .addStatement("return %T(parentStub, this, dataStream.readName()?.string)", moduleStubClass)
-                                .build())
-                        .addFunction(FunSpec.builder("createPsi")
-                                .addModifiers(KModifier.OVERRIDE)
-                                .addParameter("stub", moduleStubClass)
-                                .returns(typeNameProvider["LmModule"]!!)
-                                .addStatement("return %T(stub, this)", moduleImplClass)
-                                .build())
-                        .addFunction(FunSpec.builder("createStub")
-                                .addModifiers(KModifier.OVERRIDE)
-                                .addParameter("psi", typeNameProvider["LmModule"]!!)
-                                .addParameter("parentStub", ParameterizedTypeName.get(
-                                        StubElement::class.asClassName(),
-                                        WildcardTypeName.subtypeOf(ANY)
-                                ).asNullable())
-                                .returns(moduleStubClass)
-                                .addStatement("return %T(parentStub, this, psi.name)", moduleStubClass)
-                                .build())
-                        .addFunction(FunSpec.builder("indexStub")
-                                .addModifiers(KModifier.OVERRIDE)
-                                .addParameter("stub", moduleStubClass)
-                                .addParameter("sink", IndexSink::class)
-                                .addStatement("sink.indexModule(stub)")
-                                .build())
-                        .build())
-                .build()
-        val variableStubSpec = TypeSpec.classBuilder("${fileNamePrefix}VariableStub")
-                .primaryConstructor(FunSpec.constructorBuilder()
-                        .addParameter("parent", ParameterizedTypeName.get(
-                                StubElement::class.asClassName(),
-                                WildcardTypeName.subtypeOf(ANY)
-                        ).asNullable())
-                        .addParameter("elementType", ParameterizedTypeName.get(
-                                IStubElementType::class.asClassName(),
-                                WildcardTypeName.subtypeOf(ANY),
-                                WildcardTypeName.subtypeOf(ANY)
-                        ))
-                        .addParameter("name", String::class.asTypeName().asNullable())
-                        .build())
-                .superclass(ParameterizedTypeName.get(definitionStubClass, typeNameProvider["LmVariable"]!!))
-                .addSuperclassConstructorParameter("parent")
-                .addSuperclassConstructorParameter("elementType")
-                .addSuperclassConstructorParameter("name")
-                .companionObject(TypeSpec.companionObjectBuilder("Type")
-                        .superclass(ParameterizedTypeName.get(
-                                stubElementTypeClass,
-                                variableStubClass,
-                                typeNameProvider["LmVariable"]!!
-                        ))
-                        .addSuperclassConstructorParameter("\"VARIABLE\"")
-                        .addFunction(FunSpec.builder("serialize")
-                                .addModifiers(KModifier.OVERRIDE)
-                                .addParameter("stub", variableStubClass)
-                                .addParameter("dataStream", StubOutputStream::class)
-                                .addStatement("with(dataStream) { writeName(stub.name) }")
-                                .build())
-                        .addFunction(FunSpec.builder("deserialize")
-                                .addModifiers(KModifier.OVERRIDE)
-                                .addParameter("dataStream", StubInputStream::class)
-                                .addParameter("parentStub", ParameterizedTypeName.get(
-                                        StubElement::class.asClassName(),
-                                        WildcardTypeName.subtypeOf(ANY)
-                                ).asNullable())
-                                .returns(variableStubClass)
-                                .addStatement("return %T(parentStub, this, dataStream.readName()?.string)", variableStubClass)
-                                .build())
-                        .addFunction(FunSpec.builder("createPsi")
-                                .addModifiers(KModifier.OVERRIDE)
-                                .addParameter("stub", variableStubClass)
-                                .returns(typeNameProvider["LmVariable"]!!)
-                                .addStatement("return %T(stub, this)", variableImplClass)
-                                .build())
-                        .addFunction(FunSpec.builder("createStub")
-                                .addModifiers(KModifier.OVERRIDE)
-                                .addParameter("psi", typeNameProvider["LmVariable"]!!)
-                                .addParameter("parentStub", ParameterizedTypeName.get(
-                                        StubElement::class.asClassName(),
-                                        WildcardTypeName.subtypeOf(ANY)
-                                ).asNullable())
-                                .returns(variableStubClass)
-                                .addStatement("return %T(parentStub, this, psi.name)", variableStubClass)
-                                .build())
-                        .addFunction(FunSpec.builder("indexStub")
-                                .addModifiers(KModifier.OVERRIDE)
-                                .addParameter("stub", variableStubClass)
-                                .addParameter("sink", IndexSink::class)
-                                .addStatement("sink.indexVariable(stub)")
-                                .build())
-                        .build())
-                .build()
+                .also { file.addType(it) }
 
-        val file = FileSpec.builder("$basePackageName.psi.stubs", "StubImplementations")
-                .addType(fileStubSpec)
-                .addFunction(factorySpec)
-                .addType(definitionStubSpec)
-                .addType(moduleStubSpec)
-                .addType(variableStubSpec)
-                .build()
-        file.writeTo(genPath)
+        for (className in stubbedClassNames) {
+            val stubClass = ClassName("$basePackageName.psi.stubs", "${className.simpleName()}Stub")
+            val implClass = ClassName("$basePackageName.psi.impl", "${className.simpleName()}Impl")
+            TypeSpec.classBuilder("${className.simpleName()}Stub")
+                    .primaryConstructor(FunSpec.constructorBuilder()
+                            .addParameter("parent", ParameterizedTypeName.get(
+                                    StubElement::class.asClassName(),
+                                    WildcardTypeName.subtypeOf(ANY)
+                            ).asNullable())
+                            .addParameter("elementType", ParameterizedTypeName.get(
+                                    IStubElementType::class.asClassName(),
+                                    WildcardTypeName.subtypeOf(ANY),
+                                    WildcardTypeName.subtypeOf(ANY)
+                            ))
+                            .addParameter("name", String::class.asTypeName().asNullable())
+                            .build())
+                    .superclass(ParameterizedTypeName.get(definitionStubClass, className))
+                    .addSuperclassConstructorParameter("parent")
+                    .addSuperclassConstructorParameter("elementType")
+                    .addSuperclassConstructorParameter("name")
+                    .companionObject(TypeSpec.companionObjectBuilder("Type")
+                            .superclass(ParameterizedTypeName.get(
+                                    stubElementTypeClass,
+                                    stubClass,
+                                    className
+                            ))
+                            .addSuperclassConstructorParameter("\"${className.commonName.toUpperCase()}\"")
+                            .addFunction(FunSpec.builder("serialize")
+                                    .addModifiers(KModifier.OVERRIDE)
+                                    .addParameter("stub", stubClass)
+                                    .addParameter("dataStream", StubOutputStream::class)
+                                    .addStatement("with(dataStream) { writeName(stub.name) }")
+                                    .build())
+                            .addFunction(FunSpec.builder("deserialize")
+                                    .addModifiers(KModifier.OVERRIDE)
+                                    .addParameter("dataStream", StubInputStream::class)
+                                    .addParameter("parentStub", ParameterizedTypeName.get(
+                                            StubElement::class.asClassName(),
+                                            WildcardTypeName.subtypeOf(ANY)
+                                    ).asNullable())
+                                    .returns(stubClass)
+                                    .addStatement("return %T(parentStub, this, dataStream.readName()?.string)", stubClass)
+                                    .build())
+                            .addFunction(FunSpec.builder("createPsi")
+                                    .addModifiers(KModifier.OVERRIDE)
+                                    .addParameter("stub", stubClass)
+                                    .returns(className)
+                                    .addStatement("return %T(stub, this)", implClass)
+                                    .build())
+                            .addFunction(FunSpec.builder("createStub")
+                                    .addModifiers(KModifier.OVERRIDE)
+                                    .addParameter("psi", className)
+                                    .addParameter("parentStub", ParameterizedTypeName.get(
+                                            StubElement::class.asClassName(),
+                                            WildcardTypeName.subtypeOf(ANY)
+                                    ).asNullable())
+                                    .returns(stubClass)
+                                    .addStatement("return %T(parentStub, this, psi.name)", stubClass)
+                                    .build())
+                            .addFunction(FunSpec.builder("indexStub")
+                                    .addModifiers(KModifier.OVERRIDE)
+                                    .addParameter("stub", stubClass)
+                                    .addParameter("sink", IndexSink::class)
+                                    .addStatement("sink.index${className.commonName}(stub)")
+                                    .build())
+                            .build())
+                    .build()
+                    .also { file.addType(it) }
+        }
+
+        file.build().writeTo(genPath)
     }
 
     private fun generateStubIndexing() {
-        val namedElementIndexClass = ClassName("$basePackageName.psi.stubs.index", "${fileNamePrefix}NamedElementIndex")
-        val gotoClassIndexClass = ClassName("$basePackageName.psi.stubs.index", "${fileNamePrefix}GotoClassIndex")
+        val file = FileSpec.builder("$basePackageName.psi.stubs", "StubIndexing")
 
-        val indexModuleSpec = FunSpec.builder("indexModule")
-                .receiver(IndexSink::class)
-                .addParameter("stub", moduleStubClass)
-                .addCode(
-                        """
-                            indexNamedStub(stub)
-                            indexDefinitionStub(stub)
-                            indexGotoClass(stub)
-
-                        """.trimIndent()
-                )
-                .build()
-        val indexVariableSpec = FunSpec.builder("indexVariable")
-                .receiver(IndexSink::class)
-                .addParameter("stub", variableStubClass)
-                .addCode(
-                        """
-                            indexNamedStub(stub)
-                            indexDefinitionStub(stub)
-
-                        """.trimIndent()
-                )
-                .build()
-        val indexNamedStubSpec = FunSpec.builder("indexNamedStub")
+        FunSpec.builder("indexNamedStub")
                 .addModifiers(KModifier.PRIVATE)
                 .receiver(IndexSink::class)
                 .addParameter("stub", namedStubClass)
                 .addStatement("stub.name?.let { occurrence(%T.KEY, it) }", namedElementIndexClass)
                 .build()
-        val indexDefinitionStubSpec = FunSpec.builder("indexDefinitionStub")
+                .also { file.addFunction(it) }
+        FunSpec.builder("indexDefinitionStub")
                 .addModifiers(KModifier.PRIVATE)
                 .receiver(IndexSink::class)
                 .addParameter("stub", namedStubClass)
                 .addStatement("stub.name?.let { occurrence(%T.KEY, it) }", namedElementIndexClass)
                 .build()
-        val indexGotoClassSpec = FunSpec.builder("indexGotoClass")
+                .also { file.addFunction(it) }
+        FunSpec.builder("indexGotoClass")
                 .addModifiers(KModifier.PRIVATE)
                 .receiver(IndexSink::class)
                 .addParameter("stub", namedStubClass)
                 .addStatement("stub.name?.let { occurrence(%T.KEY, it) }", gotoClassIndexClass)
                 .build()
+                .also { file.addFunction(it) }
 
-        val file = FileSpec.builder("$basePackageName.psi.stubs", "StubIndexing")
-                .addFunction(indexModuleSpec)
-                .addFunction(indexVariableSpec)
-                .addFunction(indexNamedStubSpec)
-                .addFunction(indexDefinitionStubSpec)
-                .addFunction(indexGotoClassSpec)
-                .build()
-        file.writeTo(genPath)
+        for (scopeRule in scopeRules) {
+            if (scopeRule.isStubbed) {
+                val className = scopeRule.klass.asClassName()
+                val stubClass = ClassName("$basePackageName.psi.stubs", "${className.simpleName()}Stub")
+                val indexSpec = FunSpec.builder("index${className.commonName}")
+                        .receiver(IndexSink::class)
+                        .addParameter("stub", stubClass)
+                if (scopeRule.isNamedElement) {
+                    indexSpec.addStatement("indexNamedStub(stub)")
+                }
+                if (scopeRule.isDefinition) {
+                    indexSpec.addStatement("indexDefinitionStub(stub)")
+                }
+                if (scopeRule.isClass) {
+                    indexSpec.addStatement("indexGotoClass(stub)")
+                }
+                file.addFunction(indexSpec.build())
+            }
+        }
+
+        file.build().writeTo(genPath)
     }
 
     private fun generateStubInterfaces() {
@@ -1084,22 +1071,28 @@ class NameBindingSpecification(
                                 .addModifiers(KModifier.PRIVATE)
                                 .addParameter("oldNameIdentifier", PsiElement::class)
                                 .addParameter("rawName", String::class)
+                                .addStatement("val name = rawName.removeSuffix('.' + %T.defaultExtension)", fileTypeClass)
+                                .addStatement("if (!%T().isIdentifier(name, oldNameIdentifier.project)) return", namesValidatorClass)
+                                .addStatement("val factory = %T(oldNameIdentifier.project)", psiFactoryClass)
                                 .addCode(
-                                        """
-                                            val name = rawName.removeSuffix('.' + %T.defaultExtension)
-                                            if (!%T().isIdentifier(name, oldNameIdentifier.project)) return
-                                            val factory = %T(oldNameIdentifier.project)
-                                            val newNameIdentifier = when (oldNameIdentifier) {
-                                                is %T -> factory.createDefinitionId(name)
-                                                is %T -> factory.createQualifiedIdPart(name)
-                                                else -> return
+                                        buildString {
+                                            append("val newNameIdentifier = when (oldNameIdentifier) {\n")
+                                            for (scopeRule in scopeRules) {
+                                                if (scopeRule.isReferable || scopeRule.isReference) {
+                                                    val className = scopeRule.klass.asClassName()
+                                                    append("    is %T -> factory.create${className.commonName}(name)\n")
+                                                }
                                             }
-                                            oldNameIdentifier.replace(newNameIdentifier)
-
-                                        """.trimIndent(),
-                                        fileTypeClass, namesValidatorClass, psiFactoryClass,
-                                        typeNameProvider["LmDefinitionId"]!!, typeNameProvider["LmQualifiedIdPart"]!!
+                                            append("    else -> return\n")
+                                            append("}\n")
+                                        }.trimMargin(),
+                                        *scopeRules
+                                                .filter { it.isReferable || it.isReference }
+                                                .map { it.klass.asClassName() }
+                                                .toTypedArray()
                                 )
+                                .addStatement("")
+                                .addStatement("oldNameIdentifier.replace(newNameIdentifier)")
                                 .build())
                         .build())
                 .build()
@@ -1116,7 +1109,7 @@ class NameBindingSpecification(
 
         val scopeProviderSpec = TypeSpec.objectBuilder("ScopeProvider")
                 .addFunction(FunSpec.builder("getScope")
-                        .addParameter("id", typeNameProvider["LmQualifiedIdPart"]!!)
+                        .addParameter("id", ClassName("$basePackageName.psi", "${fileNamePrefix}QualifiedIdPart"))
                         .returns(Scope::class)
                         .addStatement("val prev = id.%T()", ParameterizedTypeName.get(prevSiblingOfTypeFunction, qualifiedIdPartImplMixinClass))
                         .addStatement("return forIdentifier(prev, id)")
@@ -1124,7 +1117,7 @@ class NameBindingSpecification(
                 .addFunction(FunSpec.builder("forIdentifier")
                         .addModifiers(KModifier.PRIVATE)
                         .addParameter("id", qualifiedIdPartImplMixinClass.asNullable())
-                        .addParameter("from", typeNameProvider["LmQualifiedIdPart"]!!)
+                        .addParameter("from", ClassName("$basePackageName.psi", "${fileNamePrefix}QualifiedIdPart"))
                         .returns(Scope::class)
                         .addCode(
                                 """
@@ -1140,7 +1133,8 @@ class NameBindingSpecification(
                                 """.trimIndent(),
                                 fileWrapperClass, namespaceProviderClass,
                                 directoryWrapperClass, namespaceProviderClass,
-                                typeNameProvider["LmModule"]!!, namespaceProviderClass,
+                                ClassName("$basePackageName.psi", "${fileNamePrefix}Module"),
+                                namespaceProviderClass,
                                 EmptyScope::class
                         )
                         .build())
@@ -1171,9 +1165,12 @@ class NameBindingSpecification(
                                     }
 
                                 """.trimIndent(),
-                                LocalScope::class, typeNameProvider["LmCommand"]!!,
+                                LocalScope::class,
+                                ClassName("$basePackageName.psi", "${fileNamePrefix}Command"),
                                 fileClass, fileWrapperClass,
-                                typeNameProvider["LmModule"]!!, typeNameProvider["LmFunction"]!!, typeNameProvider["LmLet"]!!,
+                                ClassName("$basePackageName.psi", "${fileNamePrefix}Module"),
+                                ClassName("$basePackageName.psi", "${fileNamePrefix}Function"),
+                                ClassName("$basePackageName.psi", "${fileNamePrefix}Let"),
                                 EmptyScope::class, OverridingScope::class
                         )
                         .build())
@@ -1202,7 +1199,7 @@ class NameBindingSpecification(
                         .build())
                 .addFunction(FunSpec.builder("forModule")
                         .addModifiers(KModifier.PRIVATE)
-                        .addParameter("module", typeNameProvider["LmModule"]!!)
+                        .addParameter("module", ClassName("$basePackageName.psi", "${fileNamePrefix}Module"))
                         .addParameter(ParameterSpec.builder("useCommand", Boolean::class)
                                 .defaultValue("true")
                                 .build())
@@ -1211,7 +1208,7 @@ class NameBindingSpecification(
                         .build())
                 .addFunction(FunSpec.builder("forFunction")
                         .addModifiers(KModifier.PRIVATE)
-                        .addParameter("element", typeNameProvider["LmFunction"]!!)
+                        .addParameter("element", ClassName("$basePackageName.psi", "${fileNamePrefix}Function"))
                         .returns(Scope::class)
                         .addCode(
                                 """
@@ -1225,7 +1222,7 @@ class NameBindingSpecification(
                         .build())
                 .addFunction(FunSpec.builder("forLet")
                         .addModifiers(KModifier.PRIVATE)
-                        .addParameter("element", typeNameProvider["LmLet"]!!)
+                        .addParameter("element", ClassName("$basePackageName.psi", "${fileNamePrefix}Let"))
                         .addParameter("from", PsiElement::class)
                         .returns(Scope::class)
                         .addCode(
@@ -1279,7 +1276,7 @@ class NameBindingSpecification(
                                     return namespace
 
                                 """.trimIndent(),
-                                typeNameProvider["LmStatement"]!!
+                                ClassName("$basePackageName.psi", "${fileNamePrefix}Statement")
                         )
                         .build())
                 .addFunction(FunSpec.builder("forDirectory")
@@ -1304,7 +1301,7 @@ class NameBindingSpecification(
                         )
                         .build())
                 .addFunction(FunSpec.builder("forModule")
-                        .addParameter("module", typeNameProvider["LmModule"]!!)
+                        .addParameter("module", ClassName("$basePackageName.psi", "${fileNamePrefix}Module"))
                         .addParameter("withCommands", Boolean::class)
                         .addParameter(ParameterSpec.builder("namespace", LocalScope::class)
                                 .defaultValue("%T()", LocalScope::class)
@@ -1350,9 +1347,11 @@ class NameBindingSpecification(
                                         .forEach { namespace.putAll(it) }
 
                                 """.trimIndent(),
-                                typeNameProvider["LmStatement"]!!, qualifiedIdPartImplMixinClass,
+                                ClassName("$basePackageName.psi", "${fileNamePrefix}Statement"),
+                                qualifiedIdPartImplMixinClass,
                                 fileWrapperClass, directoryWrapperClass,
-                                typeNameProvider["LmModule"]!!, EmptyScope::class
+                                ClassName("$basePackageName.psi", "${fileNamePrefix}Module"),
+                                EmptyScope::class
                         )
                         .build())
                 .build()
@@ -1376,14 +1375,14 @@ class NameBindingSpecification(
                         .addParameter("name", String::class)
                         .addParameter("project", Project::class.asClassName().asNullable())
                         .returns(Boolean::class)
-                        .addStatement("return getLexerType(name) in %T", keywordsClass)
+                        .addStatement("return getLexerType(name) in %T.keywords", tokenTypeClass)
                         .build())
                 .addFunction(FunSpec.builder("isIdentifier")
                         .addModifiers(KModifier.OVERRIDE)
                         .addParameter("name", String::class)
                         .addParameter("project", Project::class.asClassName().asNullable())
                         .returns(Boolean::class)
-                        .addStatement("return getLexerType(name) == %T && !containsComment(name)", idClass)
+                        .addStatement("return getLexerType(name) in %T.identifiers && !containsComment(name)", tokenTypeClass)
                         .build())
                 .addFunction(FunSpec.builder("containsComment")
                         .addModifiers(KModifier.PRIVATE)
@@ -1432,38 +1431,10 @@ class NameBindingSpecification(
     }
 
     private fun generateNavigationUtils() {
-        val moduleSpec = PropertySpec.builder(
-                "module",
-                typeNameProvider["LmModule"]!!.asNullable())
-                .receiver(PsiElement::class)
-                .getter(FunSpec.getterBuilder()
-                        .addStatement(
-                                "return %T.filterIsInstance<%T>().firstOrNull()",
-                                ancestorsFunction,
-                                typeNameProvider["LmModule"]!!
-                        )
-                        .build())
-                .build()
-        val fullNameSpec = PropertySpec.builder(
-                "fullName",
-                String::class)
-                .receiver(typeNameProvider["LmModule"]!!)
-                .getter(FunSpec.getterBuilder()
-                        .addStatement(
-                                "val ancestors = %T.toMutableList()",
-                                ancestorsFunction
-                        )
-                        .addStatement("ancestors.reverse()")
-                        .addStatement(
-                                "return ancestors.filterIsInstance<%T>().joinToString(\".\") { it.name!! }",
-                                typeNameProvider["LmModule"]!!
-                        )
-                        .build())
-                .build()
         val getPresentationSpec = FunSpec.builder("getPresentation")
                 .addParameter("psi", elementClass)
                 .returns(ItemPresentation::class)
-                .addStatement("val location = \"(in \${psi.module?.fullName ?: psi.containingFile.name})\"")
+                .addStatement("val location = \"(in \${psi.containingFile.name})\"")
                 .addStatement("val name = presentableName(psi)")
                 .addStatement("return %T(name, location, psi.getIcon(0), null)", PresentationData::class)
                 .build()
@@ -1482,8 +1453,6 @@ class NameBindingSpecification(
                 .build()
 
         val file = FileSpec.builder("$basePackageName.navigation", "Utils")
-                .addProperty(moduleSpec)
-                .addProperty(fullNameSpec)
                 .addFunction(getPresentationSpec)
                 .addFunction(presentableNameSpec)
                 .build()
@@ -1566,18 +1535,7 @@ class NameBindingSpecification(
                         .addModifiers(KModifier.OVERRIDE)
                         .addParameter("item", NavigationItem::class.asClassName().asNullable())
                         .returns(String::class.asTypeName().asNullable())
-                        .addCode(
-                                """
-                                    if (item is %T) {
-                                        val name = item.name!!
-                                        val module = item.%T
-                                        return if (module == null) name else (module.%T + "." + name)
-                                    }
-                                    return null
-
-                                """.trimIndent(),
-                                namedElementClass, moduleFunction, fullNameFunction
-                        )
+                        .addStatement("return (item as? %T)?.name", namedElementClass)
                         .build())
                 .addFunction(FunSpec.builder("getQualifiedNameSeparator")
                         .addModifiers(KModifier.OVERRIDE)
@@ -1628,9 +1586,9 @@ class NameBindingSpecification(
         val wordScannerSpec = TypeSpec.classBuilder("${fileNamePrefix}WordScanner")
                 .superclass(DefaultWordsScanner::class)
                 .addSuperclassConstructorParameter("%T()", lexerAdapterClass)
-                .addSuperclassConstructorParameter("%T", idsClass)
-                .addSuperclassConstructorParameter("%T", commentsClass)
-                .addSuperclassConstructorParameter("%T", literalsClass)
+                .addSuperclassConstructorParameter("%T.identifiers", tokenTypeClass)
+                .addSuperclassConstructorParameter("%T.comments", tokenTypeClass)
+                .addSuperclassConstructorParameter("%T.literals", tokenTypeClass)
                 .build()
 
         val file = FileSpec.builder("$basePackageName.search", "${fileNamePrefix}WordScanner")
@@ -1664,15 +1622,21 @@ class NameBindingSpecification(
                         .returns(String::class)
                         .addParameter("element", PsiElement::class)
                         .addStatement(
-                                """
-                                    return when (element) {
-                                        is %T -> "module"
-                                        is %T -> "variable"
-                                        else -> ""
+                                buildString {
+                                    append("return when (element) {\n")
+                                    for (scopeRule in scopeRules) {
+                                        if (scopeRule.isDefinition) {
+                                            val name = scopeRule.klass.asClassName()
+                                            append("    is %T -> \"${name.commonName.toLowerCase()}\"\n")
+                                        }
                                     }
-                                """.trimIndent(),
-                                typeNameProvider["LmModule"]!!,
-                                typeNameProvider["LmVariable"]!!
+                                    append("    else -> \"\"\n")
+                                    append("}\n")
+                                }.trimMargin(),
+                                *scopeRules
+                                        .filter { it.isDefinition }
+                                        .map { it.klass.asClassName() }
+                                        .toTypedArray()
                         )
                         .build())
                 .addFunction(FunSpec.builder("getDescriptiveName")
@@ -1713,25 +1677,25 @@ class NameBindingSpecification(
     }
 
     private fun generateGroupRuleProviders() {
-        val moduleGroupingRuleProviderSpec = TypeSpec.classBuilder("${fileNamePrefix}ModuleGroupingRuleProvider")
-                .addSuperinterface(FileStructureGroupRuleProvider::class)
-                .addFunction(FunSpec.builder("getUsageGroupingRule")
-                        .addModifiers(KModifier.OVERRIDE)
-                        .addParameter("project", Project::class)
-                        .returns(UsageGroupingRule::class.asClassName().asNullable())
-                        .addStatement("return createGroupingRule<%T>()", typeNameProvider["LmModule"]!!)
-                        .build())
-                .build()
-        val variableGroupingRuleProviderSpec = TypeSpec.classBuilder("${fileNamePrefix}VariableGroupingRuleProvider")
-                .addSuperinterface(FileStructureGroupRuleProvider::class)
-                .addFunction(FunSpec.builder("getUsageGroupingRule")
-                        .addModifiers(KModifier.OVERRIDE)
-                        .addParameter("project", Project::class)
-                        .returns(UsageGroupingRule::class.asClassName().asNullable())
-                        .addStatement("return createGroupingRule<%T>()", typeNameProvider["LmVariable"]!!)
-                        .build())
-                .build()
-        val createGroupingRuleSpec = FunSpec.builder("createGroupingRule")
+        val file = FileSpec.builder("$basePackageName.search", "${fileNamePrefix}GroupRuleProviders")
+
+        for (scopeRule in scopeRules) {
+            if (scopeRule.isDefinition) {
+                val name = scopeRule.klass.asClassName().simpleName()
+                TypeSpec.classBuilder("${name}GroupingRuleProvider")
+                        .addSuperinterface(FileStructureGroupRuleProvider::class)
+                        .addFunction(FunSpec.builder("getUsageGroupingRule")
+                                .addModifiers(KModifier.OVERRIDE)
+                                .addParameter("project", Project::class)
+                                .returns(UsageGroupingRule::class.asClassName().asNullable())
+                                .addStatement("return createGroupingRule<%T>()", scopeRule.klass.asClassName())
+                                .build())
+                        .build()
+                        .also { file.addType(it) }
+            }
+        }
+
+        FunSpec.builder("createGroupingRule")
                 .addModifiers(KModifier.PRIVATE, KModifier.INLINE)
                 .addTypeVariable(variableType.withBounds(namedElementClass).reified())
                 .returns(UsageGroupingRule::class)
@@ -1761,12 +1725,86 @@ class NameBindingSpecification(
                         )
                 )
                 .build()
+                .also { file.addFunction(it) }
 
-        val file = FileSpec.builder("$basePackageName.search", "${fileNamePrefix}GroupRuleProviders")
-                .addType(moduleGroupingRuleProviderSpec)
-                .addType(variableGroupingRuleProviderSpec)
-                .addFunction(createGroupingRuleSpec)
-                .build()
-        file.writeTo(genPath)
+        file.build().writeTo(genPath)
     }
+
+    companion object {
+        private const val NB_PACKAGE_NAME = "org.nbkit"
+
+        // Generics
+        private val variableType = TypeVariableName("T")
+        private val stubType = TypeVariableName("StubT")
+        private val psiType = TypeVariableName("PsiT")
+        private val defType = TypeVariableName("DefT")
+
+        // Extensions
+        private val parentOfTypeFunction = ClassName("$NB_PACKAGE_NAME.common.psi.ext", "parentOfType")
+        private val prevSiblingOfTypeFunction = ClassName("$NB_PACKAGE_NAME.common.psi.ext", "prevSiblingOfType")
+        private val elementTypeProperty = ClassName("$NB_PACKAGE_NAME.common.psi.ext", "elementType")
+        private val childOfTypeFunction = ClassName("$NB_PACKAGE_NAME.common.psi.ext", "childOfType")
+    }
+
+    private val ClassName.commonName: String
+        get() = simpleName().removePrefix(fileNamePrefix)
 }
+
+class ScopeRuleSpec(val klass: KClass<*>) {
+    private var isNamedElement: Boolean = false
+    private var isDefinition: Boolean = false
+    private var isClass: Boolean = false
+    private var isStubbed: Boolean = false
+    private var isReferable: Boolean = false
+    private var isReference: Boolean = false
+
+    fun setIsNamedElement(value: Boolean = true): ScopeRuleSpec {
+        isNamedElement = value
+        return this
+    }
+
+    fun setIsDefinition(value: Boolean = true): ScopeRuleSpec {
+        isDefinition = value
+        return this
+    }
+
+    fun setIsClass(value: Boolean = true): ScopeRuleSpec {
+        isClass = value
+        return this
+    }
+
+    fun setIsStubbed(value: Boolean = true): ScopeRuleSpec {
+        isStubbed = value
+        return this
+    }
+
+    fun setIsReferable(value: Boolean = true): ScopeRuleSpec {
+        isReferable = value
+        return this
+    }
+
+    fun setIsReference(value: Boolean = true): ScopeRuleSpec {
+        isReference = value
+        return this
+    }
+
+    fun build(): ScopeRule = ScopeRule(
+            klass,
+            isNamedElement,
+            isDefinition,
+            isClass,
+            isStubbed,
+            isReferable,
+            isReference
+    )
+}
+
+class ScopeRule(
+        val klass: KClass<*>,
+        val isNamedElement: Boolean,
+        val isDefinition: Boolean,
+        val isClass: Boolean,
+        val isStubbed: Boolean,
+        val isReferable: Boolean,
+        val isReference: Boolean
+)
