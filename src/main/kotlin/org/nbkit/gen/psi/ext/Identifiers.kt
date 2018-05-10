@@ -3,7 +3,7 @@ package org.nbkit.gen.psi.ext
 import com.intellij.lang.ASTNode
 import com.intellij.psi.PsiElement
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeRule
+import org.nbkit.ScopeSpec
 import org.nbkit.common.resolve.Scope
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
@@ -12,16 +12,13 @@ class IdentifiersSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeRule>
+        scopeRules: List<ScopeSpec>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override fun generate() {
-        val referableNames = scopeRules
-                .filter { it.isReferable }
-                .map { it.klass.asClassName() }
-        for (referableName in referableNames) {
-            TypeSpec.classBuilder("${referableName.simpleName()}ImplMixin")
+        for (className in referableNames) {
+            TypeSpec.classBuilder("${className.simpleName()}ImplMixin")
                     .addModifiers(KModifier.ABSTRACT)
-                    .addSuperinterface(referableName)
+                    .addSuperinterface(className)
                     .superclass(elementImplClass)
                     .primaryConstructor(FunSpec.constructorBuilder()
                             .addParameter("node", ASTNode::class)
@@ -29,7 +26,7 @@ class IdentifiersSpec(
                     .addSuperclassConstructorParameter("node")
                     .addProperty(PropertySpec.builder(
                             "referenceNameElement",
-                            ClassName("$basePackageName.psi.ext", "${referableName.simpleName()}ImplMixin"), KModifier.OVERRIDE)
+                            ClassName("$basePackageName.psi.ext", "${className.simpleName()}ImplMixin"), KModifier.OVERRIDE)
                             .getter(FunSpec.getterBuilder().addStatement("return this").build())
                             .build())
                     .addProperty(PropertySpec.builder(
@@ -47,11 +44,10 @@ class IdentifiersSpec(
                     .also { addType(it) }
         }
 
-        val referenceNames = scopeRules.filter { it.isReference }.map { it.klass.asClassName() }
-        for (referenceName in referenceNames) {
-            TypeSpec.classBuilder("${referenceName.simpleName()}ImplMixin")
+        for (className in referenceNames) {
+            TypeSpec.classBuilder("${className.simpleName()}ImplMixin")
                     .addModifiers(KModifier.ABSTRACT)
-                    .addSuperinterface(referenceName)
+                    .addSuperinterface(className)
                     .superclass(elementImplClass)
                     .primaryConstructor(FunSpec.constructorBuilder()
                             .addParameter("node", ASTNode::class)
@@ -89,9 +85,9 @@ class IdentifiersSpec(
                             .addModifiers(KModifier.INNER)
                             .superclass(ParameterizedTypeName.get(
                                     ClassName("$basePackageName.resolve", "${fileNamePrefix}ReferenceBase"),
-                                    referenceName
+                                    className
                             ))
-                            .addSuperclassConstructorParameter("this@${referenceName.simpleName()}ImplMixin")
+                            .addSuperclassConstructorParameter("this@${className.simpleName()}ImplMixin")
                             .addFunction(FunSpec.builder("resolve")
                                     .addModifiers(KModifier.OVERRIDE)
                                     .returns(PsiElement::class.asClassName().asNullable())

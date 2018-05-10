@@ -10,7 +10,7 @@ import com.intellij.usages.rules.PsiElementUsage
 import com.intellij.usages.rules.SingleParentUsageGroupingRule
 import com.intellij.usages.rules.UsageGroupingRule
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeRule
+import org.nbkit.ScopeSpec
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -18,23 +18,20 @@ class GroupRuleProvidersSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeRule>
+        scopeRules: List<ScopeSpec>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override fun generate() {
-        for (scopeRule in scopeRules) {
-            if (scopeRule.isDefinition) {
-                val name = scopeRule.klass.asClassName().simpleName()
-                TypeSpec.classBuilder("${name}GroupingRuleProvider")
-                        .addSuperinterface(FileStructureGroupRuleProvider::class)
-                        .addFunction(FunSpec.builder("getUsageGroupingRule")
-                                .addModifiers(KModifier.OVERRIDE)
-                                .addParameter("project", Project::class)
-                                .returns(UsageGroupingRule::class.asClassName().asNullable())
-                                .addStatement("return createGroupingRule<%T>()", scopeRule.klass.asClassName())
-                                .build())
-                        .build()
-                        .also { addType(it) }
-            }
+        for (className in definitionNames) {
+            TypeSpec.classBuilder("${className.simpleName()}GroupingRuleProvider")
+                    .addSuperinterface(FileStructureGroupRuleProvider::class)
+                    .addFunction(FunSpec.builder("getUsageGroupingRule")
+                            .addModifiers(KModifier.OVERRIDE)
+                            .addParameter("project", Project::class)
+                            .returns(UsageGroupingRule::class.asClassName().asNullable())
+                            .addStatement("return createGroupingRule<%T>()", className)
+                            .build())
+                    .build()
+                    .also { addType(it) }
         }
 
         FunSpec.builder("createGroupingRule")

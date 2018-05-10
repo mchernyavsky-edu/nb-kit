@@ -13,9 +13,21 @@ inline fun <reified T : PsiElement> PsiElement.parentOfType(
         minStartOffset: Int = -1
 ): T? = PsiTreeUtil.getParentOfType(this, T::class.java, strict, minStartOffset)
 
-inline fun <reified T : PsiElement> PsiElement.childOfType(
+inline fun <reified T : PsiElement> PsiElement.childOfType(): T? =
+        childrenOfType<T>().firstOrNull()
+
+inline fun <reified T : PsiElement> PsiElement.childrenOfType(): Collection<T> =
+        children.filterIsInstance<T>()
+
+inline fun <reified T : PsiElement> Collection<PsiElement>.childrenOfType(): Collection<T> =
+        flatMap { it.children.filterIsInstance<T>() }
+
+inline fun <reified T : PsiElement> PsiElement.descendantOfType(
         strict: Boolean = true
 ): T? = PsiTreeUtil.findChildOfType(this, T::class.java, strict)
+
+inline fun <reified T : PsiElement> PsiElement.descendantsOfType(strict: Boolean = true): Collection<T> =
+        PsiTreeUtil.findChildrenOfAnyType(this, strict, T::class.java)
 
 inline fun <reified T : PsiElement> PsiElement.prevSiblingOfType(): T? =
         PsiTreeUtil.getPrevSiblingOfType(this, T::class.java)
@@ -25,6 +37,3 @@ val PsiElement.elementType: IElementType
 
 inline fun <reified T : PsiElement> PsiElement.ancestorOrSelf(): T? =
         PsiTreeUtil.getParentOfType(this, T::class.java, false)
-
-inline fun <reified T : PsiElement> PsiElement.descendantsOfType(): Collection<T> =
-        PsiTreeUtil.findChildrenOfType(this, T::class.java)

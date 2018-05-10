@@ -3,11 +3,10 @@ package org.nbkit.gen.navigation
 import com.intellij.ide.projectView.PresentationData
 import com.intellij.navigation.ItemPresentation
 import com.intellij.psi.PsiElement
-import com.squareup.kotlinpoet.FileSpec
 import com.squareup.kotlinpoet.FunSpec
 import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.asTypeName
-import org.nbkit.ScopeRule
+import org.nbkit.ScopeSpec
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -15,7 +14,7 @@ class UtilsSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeRule>
+        scopeRules: List<ScopeSpec>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override val className: String = this::class.simpleName?.removeSuffix("Spec") ?: error("Class name is null")
 

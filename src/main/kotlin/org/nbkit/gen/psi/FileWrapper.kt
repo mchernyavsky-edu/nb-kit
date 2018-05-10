@@ -3,7 +3,7 @@ package org.nbkit.gen.psi
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeRule
+import org.nbkit.ScopeSpec
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -11,7 +11,7 @@ class FileWrapperSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeRule>
+        scopeRules: List<ScopeSpec>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override fun generate() {
         TypeSpec.classBuilder(className)

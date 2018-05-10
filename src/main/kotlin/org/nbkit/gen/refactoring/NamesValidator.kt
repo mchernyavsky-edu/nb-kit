@@ -7,7 +7,7 @@ import com.squareup.kotlinpoet.FunSpec
 import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.TypeSpec
 import com.squareup.kotlinpoet.asClassName
-import org.nbkit.ScopeRule
+import org.nbkit.ScopeSpec
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -15,7 +15,7 @@ class NamesValidatorSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeRule>
+        scopeRules: List<ScopeSpec>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override fun generate() {
         TypeSpec.classBuilder(className)

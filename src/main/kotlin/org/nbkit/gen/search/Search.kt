@@ -1,6 +1,6 @@
 package org.nbkit.gen.search
 
-import org.nbkit.ScopeRule
+import org.nbkit.ScopeSpec
 import org.nbkit.gen.SpecGroup
 import java.nio.file.Path
 
@@ -8,7 +8,7 @@ class SearchSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeRule>
+        scopeRules: List<ScopeSpec>
 ) : SpecGroup() {
     init {
         addSpec(WordScannerSpec(fileNamePrefix, basePackageName, genPath, scopeRules))

@@ -5,7 +5,7 @@ import com.intellij.psi.StubBuilder
 import com.intellij.psi.stubs.*
 import com.intellij.psi.tree.IStubFileElementType
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeRule
+import org.nbkit.ScopeSpec
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -13,16 +13,13 @@ class StubImplementationsSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeRule>
+        scopeRules: List<ScopeSpec>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override val className: String = this::class.simpleName?.removeSuffix("Spec") ?: error("Class name is null")
 
     override fun generate() {
         val typeClass = ClassName("", "Type")
         val definitionStubClass = ClassName(packageName, "${fileNamePrefix}DefinitionStub")
-        val stubbedClassNames = scopeRules
-                .filter { it.isStubbed }
-                .map { it.klass.asClassName() }
 
         TypeSpec.classBuilder("${fileNamePrefix}FileStub")
                 .superclass(ParameterizedTypeName.get(PsiFileStubImpl::class.asClassName(), fileClass))
@@ -100,13 +97,13 @@ class StubImplementationsSpec(
                 .addStatement(
                         buildString {
                             append("return when (name) {\n")
-                            for (stubClass in stubbedClassNames) {
-                                append("    \"${stubClass.commonName.toUpperCase()}\" -> %T.Type\n")
+                            for (className in definitionNames) {
+                                append("    \"${className.commonName.toUpperCase()}\" -> %T.Type\n")
                             }
                             append("    else -> error(\"Unknown element: \" + name)\n")
                             append("}\n")
                         }.trimMargin(),
-                        *stubbedClassNames
+                        *definitionNames
                                 .map { ClassName("$basePackageName.psi.stubs", "${it.simpleName()}Stub") }
                                 .toTypedArray()
                 )
@@ -140,7 +137,7 @@ class StubImplementationsSpec(
                 .build()
                 .also { addType(it) }
 
-        for (className in stubbedClassNames) {
+        for (className in definitionNames) {
             val stubClass = ClassName("$basePackageName.psi.stubs", "${className.simpleName()}Stub")
             val implClass = ClassName("$basePackageName.psi.impl", "${className.simpleName()}Impl")
 

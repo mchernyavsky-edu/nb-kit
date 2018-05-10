@@ -7,8 +7,9 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNameIdentifierOwner
 import com.intellij.psi.stubs.IStubElementType
 import com.intellij.psi.stubs.StubElement
+import com.intellij.psi.util.PsiTreeUtil
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeRule
+import org.nbkit.ScopeSpec
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -16,7 +17,7 @@ class NamedElementSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeRule>
+        scopeRules: List<ScopeSpec>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override fun generate() {
         TypeSpec.interfaceBuilder("${fileNamePrefix}NamedElement")
@@ -36,8 +37,14 @@ class NamedElementSpec(
                 .addSuperclassConstructorParameter("node")
                 .addFunction(FunSpec.builder("getNameIdentifier")
                         .addModifiers(KModifier.OVERRIDE)
-                        .returns(elementImplClass.asNullable())
-                        .addStatement("return %T()", childOfTypeFunction)
+                        .returns(elementClass.asNullable())
+                        .addStatement(buildString {
+                            append("return %T.findChildOfAnyType(this, true")
+                            repeat(referableNames.size + referenceNames.size)  {
+                                append(", %T::class.java")
+                            }
+                            append(")")
+                        }, PsiTreeUtil::class, *(referableNames + referenceNames).toTypedArray())
                         .build())
                 .addFunction(FunSpec.builder("getName")
                         .addModifiers(KModifier.OVERRIDE)
@@ -52,19 +59,13 @@ class NamedElementSpec(
                         .addCode(
                                 buildString {
                                     append("val newNameIdentifier = when (nameIdentifier) {\n")
-                                    for (scopeRule in scopeRules) {
-                                        if (scopeRule.isReferable || scopeRule.isReference) {
-                                            val className = scopeRule.klass.asClassName()
-                                            append("    is %T -> factory.create${className.commonName}(name)\n")
-                                        }
+                                    for (className in (referableNames + referenceNames)) {
+                                        append("    is %T -> factory.create${className.commonName}(name)\n")
                                     }
                                     append("    else -> return this\n")
                                     append("}")
                                 }.trimMargin(),
-                                *scopeRules
-                                        .filter { it.isReferable || it.isReference }
-                                        .map { it.klass.asClassName() }
-                                        .toTypedArray()
+                                *(referableNames + referenceNames).toTypedArray()
                         )
                         .addStatement("")
                         .addStatement("nameIdentifier?.replace(newNameIdentifier)")
@@ -117,8 +118,14 @@ class NamedElementSpec(
                         .build())
                 .addFunction(FunSpec.builder("getNameIdentifier")
                         .addModifiers(KModifier.OVERRIDE)
-                        .returns(elementImplClass.asNullable())
-                        .addStatement("return childOfType()")
+                        .returns(elementClass.asNullable())
+                        .addStatement(buildString {
+                            append("return %T.findChildOfAnyType(this, true")
+                            repeat(referableNames.size + referenceNames.size)  {
+                                append(", %T::class.java")
+                            }
+                            append(")")
+                        }, PsiTreeUtil::class, *(referableNames + referenceNames).toTypedArray())
                         .build())
                 .addFunction(FunSpec.builder("getName")
                         .addModifiers(KModifier.OVERRIDE)
@@ -133,19 +140,13 @@ class NamedElementSpec(
                         .addCode(
                                 buildString {
                                     append("val newNameIdentifier = when (nameIdentifier) {\n")
-                                    for (scopeRule in scopeRules) {
-                                        if (scopeRule.isReferable || scopeRule.isReference) {
-                                            val className = scopeRule.klass.asClassName()
-                                            append("    is %T -> factory.create${className.commonName}(name)\n")
-                                        }
+                                    for (className in (referableNames + referenceNames)) {
+                                        append("    is %T -> factory.create${className.commonName}(name)\n")
                                     }
                                     append("    else -> return this\n")
                                     append("}\n\n")
                                 }.trimMargin(),
-                                *scopeRules
-                                        .filter { it.isReferable || it.isReference }
-                                        .map { it.klass.asClassName() }
-                                        .toTypedArray()
+                                *(referableNames + referenceNames).toTypedArray()
                         )
                         .addStatement("")
                         .addStatement("nameIdentifier?.replace(newNameIdentifier)")

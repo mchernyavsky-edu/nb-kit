@@ -2,7 +2,7 @@ package org.nbkit.gen.psi.stubs
 
 import com.intellij.psi.stubs.IndexSink
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeRule
+import org.nbkit.ScopeSpec
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -10,7 +10,7 @@ class StubIndexingSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeRule>
+        scopeRules: List<ScopeSpec>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override val className: String = this::class.simpleName?.removeSuffix("Spec") ?: error("Class name is null")
 
@@ -40,7 +40,7 @@ class StubIndexingSpec(
                 .also { addFunction(it) }
 
         for (scopeRule in scopeRules) {
-            if (scopeRule.isStubbed) {
+            if (scopeRule.isDefinition) {
                 val className = scopeRule.klass.asClassName()
                 val stubClass = ClassName("$basePackageName.psi.stubs", "${className.simpleName()}Stub")
                 val indexSpec = FunSpec.builder("index${className.commonName}")

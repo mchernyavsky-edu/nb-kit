@@ -1,7 +1,7 @@
 package org.nbkit.gen
 
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeRule
+import org.nbkit.ScopeSpec
 import java.nio.file.Path
 
 interface Spec {
@@ -12,8 +12,23 @@ abstract class BaseSpec(
         protected val fileNamePrefix: String,
         protected val basePackageName: String,
         protected val genPath: Path,
-        protected val scopeRules: List<ScopeRule>
+        protected val scopeRules: List<ScopeSpec>
 ) : Spec {
+    protected val definitionNames by lazy {
+        scopeRules
+                .filter { it.isDefinition }
+                .map { it.klass.asClassName() }
+    }
+    protected val referableNames by lazy {
+        scopeRules
+                .filter { it.isReferable }
+                .map { it.klass.asClassName() }
+    }
+    protected val referenceNames by lazy {
+        scopeRules
+                .filter { it.isReference }
+                .map { it.klass.asClassName() }
+    }
 
     protected open val packageName: String by lazy {
         this::class
@@ -73,7 +88,7 @@ abstract class BaseSpec(
     protected val parentOfTypeFunction = ClassName("$NBKIT_PACKAGE_NAME.common.psi.ext", "parentOfType")
     protected val prevSiblingOfTypeFunction = ClassName("$NBKIT_PACKAGE_NAME.common.psi.ext", "prevSiblingOfType")
     protected val elementTypeProperty = ClassName("$NBKIT_PACKAGE_NAME.common.psi.ext", "elementType")
-    protected val childOfTypeFunction = ClassName("$NBKIT_PACKAGE_NAME.common.psi.ext", "childOfType")
+    protected val descendantOfTypeFunction = ClassName("$NBKIT_PACKAGE_NAME.common.psi.ext", "descendantOfType")
 
     private val file: FileSpec.Builder by lazy { FileSpec.builder(packageName, className) }
 

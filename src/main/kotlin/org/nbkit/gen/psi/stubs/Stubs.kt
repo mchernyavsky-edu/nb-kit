@@ -1,6 +1,6 @@
 package org.nbkit.gen.psi.stubs
 
-import org.nbkit.ScopeRule
+import org.nbkit.ScopeSpec
 import org.nbkit.gen.SpecGroup
 import org.nbkit.gen.psi.stubs.index.IndexesSpec
 import java.nio.file.Path
@@ -9,7 +9,7 @@ class StubsSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeRule>
+        scopeRules: List<ScopeSpec>
 ) : SpecGroup() {
     init {
         addSpec(IndexesSpec(fileNamePrefix, basePackageName, genPath, scopeRules))

@@ -1,6 +1,6 @@
 package org.nbkit.gen.psi
 
-import org.nbkit.ScopeRule
+import org.nbkit.ScopeSpec
 import org.nbkit.gen.SpecGroup
 import org.nbkit.gen.psi.ext.ExtSpec
 import org.nbkit.gen.psi.stubs.StubsSpec
@@ -10,7 +10,7 @@ class PsiSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeRule>
+        scopeRules: List<ScopeSpec>
 ) : SpecGroup() {
     init {
         addSpec(ExtSpec(fileNamePrefix, basePackageName, genPath, scopeRules))

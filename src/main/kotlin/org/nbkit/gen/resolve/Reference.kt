@@ -5,7 +5,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiReference
 import com.intellij.psi.PsiReferenceBase
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeRule
+import org.nbkit.ScopeSpec
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -13,7 +13,7 @@ class ReferenceSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeRule>
+        scopeRules: List<ScopeSpec>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override fun generate() {
         TypeSpec.interfaceBuilder(className)
@@ -60,19 +60,13 @@ class ReferenceSpec(
                                 .addCode(
                                         buildString {
                                             append("val newNameIdentifier = when (oldNameIdentifier) {\n")
-                                            for (scopeRule in scopeRules) {
-                                                if (scopeRule.isReferable || scopeRule.isReference) {
-                                                    val className = scopeRule.klass.asClassName()
-                                                    append("    is %T -> factory.create${className.commonName}(name)\n")
-                                                }
+                                            for (className in (referableNames + referenceNames)) {
+                                                append("    is %T -> factory.create${className.commonName}(name)\n")
                                             }
                                             append("    else -> return\n")
                                             append("}\n")
                                         }.trimMargin(),
-                                        *scopeRules
-                                                .filter { it.isReferable || it.isReference }
-                                                .map { it.klass.asClassName() }
-                                                .toTypedArray()
+                                        *(referableNames + referenceNames).toTypedArray()
                                 )
                                 .addStatement("")
                                 .addStatement("oldNameIdentifier.replace(newNameIdentifier)")
