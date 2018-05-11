@@ -59,12 +59,12 @@ class ReferenceSpec(
                                 .addStatement("val factory = %T(oldNameIdentifier.project)", psiFactoryClass)
                                 .addCode(
                                         buildString {
-                                            append("val newNameIdentifier = when (oldNameIdentifier) {\n")
+                                            appendln("val newNameIdentifier = when (oldNameIdentifier) {")
                                             for (className in (referableClasses + referenceClasses)) {
-                                                append("    is %T -> factory.create${className.commonName}(name)\n")
+                                                appendln("    is %T -> factory.create${className.commonName}(name)")
                                             }
-                                            append("    else -> return\n")
-                                            append("}\n")
+                                            appendln("    else -> return")
+                                            appendln("}")
                                         }.trimMargin(),
                                         *(referableClasses + referenceClasses).toTypedArray()
                                 )

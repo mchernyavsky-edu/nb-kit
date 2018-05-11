@@ -58,12 +58,12 @@ class NamedElementSpec(
                         .addStatement("val factory = %T(project)", psiFactoryClass)
                         .addCode(
                                 buildString {
-                                    append("val newNameIdentifier = when (nameIdentifier) {\n")
+                                    appendln("val newNameIdentifier = when (nameIdentifier) {")
                                     for (className in (referableClasses + referenceClasses)) {
-                                        append("    is %T -> factory.create${className.commonName}(name)\n")
+                                        appendln("    is %T -> factory.create${className.commonName}(name)")
                                     }
-                                    append("    else -> return this\n")
-                                    append("}")
+                                    appendln("    else -> return this")
+                                    appendln("}")
                                 }.trimMargin(),
                                 *(referableClasses + referenceClasses).toTypedArray()
                         )
@@ -139,12 +139,12 @@ class NamedElementSpec(
                         .addStatement("val factory = %T(project)", psiFactoryClass)
                         .addCode(
                                 buildString {
-                                    append("val newNameIdentifier = when (nameIdentifier) {\n")
+                                    appendln("val newNameIdentifier = when (nameIdentifier) {")
                                     for (className in (referableClasses + referenceClasses)) {
-                                        append("    is %T -> factory.create${className.commonName}(name)\n")
+                                        appendln("    is %T -> factory.create${className.commonName}(name)")
                                     }
-                                    append("    else -> return this\n")
-                                    append("}\n\n")
+                                    appendln("    else -> return this")
+                                    appendln("}\n")
                                 }.trimMargin(),
                                 *(referableClasses + referenceClasses).toTypedArray()
                         )

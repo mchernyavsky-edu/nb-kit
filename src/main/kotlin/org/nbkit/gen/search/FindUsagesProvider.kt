@@ -43,12 +43,12 @@ class FindUsagesProviderSpec(
                         .addParameter("element", PsiElement::class)
                         .addStatement(
                                 buildString {
-                                    append("return when (element) {\n")
+                                    appendln("return when (element) {")
                                     for (className in definitionClasses) {
-                                        append("    is %T -> \"${className.commonName.toLowerCase()}\"\n")
+                                        appendln("    is %T -> \"${className.commonName.toLowerCase()}\"")
                                     }
-                                    append("    else -> \"\"\n")
-                                    append("}\n")
+                                    appendln("    else -> \"\"")
+                                    appendln("}")
                                 }.trimMargin(),
                                 *definitionClasses.toTypedArray()
                         )

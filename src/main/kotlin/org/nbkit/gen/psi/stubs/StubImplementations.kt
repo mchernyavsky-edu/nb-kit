@@ -96,12 +96,12 @@ class StubImplementationsSpec(
                 ))
                 .addStatement(
                         buildString {
-                            append("return when (name) {\n")
+                            appendln("return when (name) {")
                             for (className in definitionClasses) {
-                                append("    \"${className.commonName.toUpperCase()}\" -> %T.Type\n")
+                                appendln("    \"${className.commonName.toUpperCase()}\" -> %T.Type")
                             }
-                            append("    else -> error(\"Unknown element: \" + name)\n")
-                            append("}\n")
+                            appendln("    else -> error(\"Unknown element: \" + name)")
+                            appendln("}")
                         }.trimMargin(),
                         *definitionClasses
                                 .map { ClassName("$basePackageName.psi.stubs", "${it.simpleName()}Stub") }
