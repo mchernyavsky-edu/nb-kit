@@ -5,7 +5,7 @@ import com.intellij.psi.StubBuilder
 import com.intellij.psi.stubs.*
 import com.intellij.psi.tree.IStubFileElementType
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeSpec
+import org.nbkit.lang.ScopeRule
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -13,7 +13,7 @@ class StubImplementationsSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeSpec>
+        scopeRules: List<ScopeRule>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override val className: String = this::class.simpleName?.removeSuffix("Spec") ?: error("Class name is null")
 
@@ -97,13 +97,13 @@ class StubImplementationsSpec(
                 .addStatement(
                         buildString {
                             append("return when (name) {\n")
-                            for (className in definitionNames) {
+                            for (className in definitionClasses) {
                                 append("    \"${className.commonName.toUpperCase()}\" -> %T.Type\n")
                             }
                             append("    else -> error(\"Unknown element: \" + name)\n")
                             append("}\n")
                         }.trimMargin(),
-                        *definitionNames
+                        *definitionClasses
                                 .map { ClassName("$basePackageName.psi.stubs", "${it.simpleName()}Stub") }
                                 .toTypedArray()
                 )
@@ -137,7 +137,7 @@ class StubImplementationsSpec(
                 .build()
                 .also { addType(it) }
 
-        for (className in definitionNames) {
+        for (className in definitionClasses) {
             val stubClass = ClassName("$basePackageName.psi.stubs", "${className.simpleName()}Stub")
             val implClass = ClassName("$basePackageName.psi.impl", "${className.simpleName()}Impl")
 

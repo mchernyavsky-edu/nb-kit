@@ -4,7 +4,7 @@ import com.intellij.lang.ASTNode
 import com.intellij.psi.stubs.IStubElementType
 import com.intellij.psi.stubs.StubElement
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeSpec
+import org.nbkit.lang.ScopeRule
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -12,7 +12,7 @@ class DefinitionSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeSpec>
+        scopeRules: List<ScopeRule>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override fun generate() {
         TypeSpec.classBuilder("${fileNamePrefix}DefinitionMixin")

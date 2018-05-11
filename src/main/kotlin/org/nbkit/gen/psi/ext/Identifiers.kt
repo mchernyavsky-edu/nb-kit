@@ -3,7 +3,7 @@ package org.nbkit.gen.psi.ext
 import com.intellij.lang.ASTNode
 import com.intellij.psi.PsiElement
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeSpec
+import org.nbkit.lang.ScopeRule
 import org.nbkit.common.resolve.Scope
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
@@ -12,10 +12,10 @@ class IdentifiersSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeSpec>
+        scopeRules: List<ScopeRule>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override fun generate() {
-        for (className in referableNames) {
+        for (className in referableClasses) {
             TypeSpec.classBuilder("${className.simpleName()}ImplMixin")
                     .addModifiers(KModifier.ABSTRACT)
                     .addSuperinterface(className)
@@ -44,7 +44,7 @@ class IdentifiersSpec(
                     .also { addType(it) }
         }
 
-        for (className in referenceNames) {
+        for (className in referenceClasses) {
             TypeSpec.classBuilder("${className.simpleName()}ImplMixin")
                     .addModifiers(KModifier.ABSTRACT)
                     .addSuperinterface(className)

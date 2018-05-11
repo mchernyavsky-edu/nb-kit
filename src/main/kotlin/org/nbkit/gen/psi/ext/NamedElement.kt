@@ -9,7 +9,7 @@ import com.intellij.psi.stubs.IStubElementType
 import com.intellij.psi.stubs.StubElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeSpec
+import org.nbkit.lang.ScopeRule
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -17,7 +17,7 @@ class NamedElementSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeSpec>
+        scopeRules: List<ScopeRule>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override fun generate() {
         TypeSpec.interfaceBuilder("${fileNamePrefix}NamedElement")
@@ -40,11 +40,11 @@ class NamedElementSpec(
                         .returns(elementClass.asNullable())
                         .addStatement(buildString {
                             append("return %T.findChildOfAnyType(this, true")
-                            repeat(referableNames.size + referenceNames.size)  {
+                            repeat(referableClasses.size + referenceClasses.size)  {
                                 append(", %T::class.java")
                             }
                             append(")")
-                        }, PsiTreeUtil::class, *(referableNames + referenceNames).toTypedArray())
+                        }, PsiTreeUtil::class, *(referableClasses + referenceClasses).toTypedArray())
                         .build())
                 .addFunction(FunSpec.builder("getName")
                         .addModifiers(KModifier.OVERRIDE)
@@ -59,13 +59,13 @@ class NamedElementSpec(
                         .addCode(
                                 buildString {
                                     append("val newNameIdentifier = when (nameIdentifier) {\n")
-                                    for (className in (referableNames + referenceNames)) {
+                                    for (className in (referableClasses + referenceClasses)) {
                                         append("    is %T -> factory.create${className.commonName}(name)\n")
                                     }
                                     append("    else -> return this\n")
                                     append("}")
                                 }.trimMargin(),
-                                *(referableNames + referenceNames).toTypedArray()
+                                *(referableClasses + referenceClasses).toTypedArray()
                         )
                         .addStatement("")
                         .addStatement("nameIdentifier?.replace(newNameIdentifier)")
@@ -121,11 +121,11 @@ class NamedElementSpec(
                         .returns(elementClass.asNullable())
                         .addStatement(buildString {
                             append("return %T.findChildOfAnyType(this, true")
-                            repeat(referableNames.size + referenceNames.size)  {
+                            repeat(referableClasses.size + referenceClasses.size)  {
                                 append(", %T::class.java")
                             }
                             append(")")
-                        }, PsiTreeUtil::class, *(referableNames + referenceNames).toTypedArray())
+                        }, PsiTreeUtil::class, *(referableClasses + referenceClasses).toTypedArray())
                         .build())
                 .addFunction(FunSpec.builder("getName")
                         .addModifiers(KModifier.OVERRIDE)
@@ -140,13 +140,13 @@ class NamedElementSpec(
                         .addCode(
                                 buildString {
                                     append("val newNameIdentifier = when (nameIdentifier) {\n")
-                                    for (className in (referableNames + referenceNames)) {
+                                    for (className in (referableClasses + referenceClasses)) {
                                         append("    is %T -> factory.create${className.commonName}(name)\n")
                                     }
                                     append("    else -> return this\n")
                                     append("}\n\n")
                                 }.trimMargin(),
-                                *(referableNames + referenceNames).toTypedArray()
+                                *(referableClasses + referenceClasses).toTypedArray()
                         )
                         .addStatement("")
                         .addStatement("nameIdentifier?.replace(newNameIdentifier)")

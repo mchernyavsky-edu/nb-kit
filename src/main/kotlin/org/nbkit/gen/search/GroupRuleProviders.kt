@@ -10,7 +10,7 @@ import com.intellij.usages.rules.PsiElementUsage
 import com.intellij.usages.rules.SingleParentUsageGroupingRule
 import com.intellij.usages.rules.UsageGroupingRule
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeSpec
+import org.nbkit.lang.ScopeRule
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -18,10 +18,10 @@ class GroupRuleProvidersSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeSpec>
+        scopeRules: List<ScopeRule>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override fun generate() {
-        for (className in definitionNames) {
+        for (className in definitionClasses) {
             TypeSpec.classBuilder("${className.simpleName()}GroupingRuleProvider")
                     .addSuperinterface(FileStructureGroupRuleProvider::class)
                     .addFunction(FunSpec.builder("getUsageGroupingRule")

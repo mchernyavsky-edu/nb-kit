@@ -1,7 +1,7 @@
 package org.nbkit.gen.resolve
 
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeSpec
+import org.nbkit.lang.ScopeRule
 import org.nbkit.common.resolve.EmptyScope
 import org.nbkit.common.resolve.LocalScope
 import org.nbkit.common.resolve.Scope
@@ -12,7 +12,7 @@ class NamespaceProviderSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeSpec>
+        scopeRules: List<ScopeRule>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override val className: String = this::class.simpleName?.removeSuffix("Spec") ?: error("Class name is null")
 

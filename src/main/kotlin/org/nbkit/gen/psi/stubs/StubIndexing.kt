@@ -2,7 +2,7 @@ package org.nbkit.gen.psi.stubs
 
 import com.intellij.psi.stubs.IndexSink
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeSpec
+import org.nbkit.lang.ScopeRule
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -10,7 +10,7 @@ class StubIndexingSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeSpec>
+        scopeRules: List<ScopeRule>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override val className: String = this::class.simpleName?.removeSuffix("Spec") ?: error("Class name is null")
 
@@ -39,24 +39,21 @@ class StubIndexingSpec(
                 .build()
                 .also { addFunction(it) }
 
-        for (scopeRule in scopeRules) {
-            if (scopeRule.isDefinition) {
-                val className = scopeRule.klass.asClassName()
-                val stubClass = ClassName("$basePackageName.psi.stubs", "${className.simpleName()}Stub")
-                val indexSpec = FunSpec.builder("index${className.commonName}")
-                        .receiver(IndexSink::class)
-                        .addParameter("stubs", stubClass)
-                if (scopeRule.isNamedElement) {
-                    indexSpec.addStatement("indexNamedStub(stubs)")
-                }
-                if (scopeRule.isDefinition) {
-                    indexSpec.addStatement("indexDefinitionStub(stubs)")
-                }
-                if (scopeRule.isClass) {
-                    indexSpec.addStatement("indexGotoClass(stubs)")
-                }
-                addFunction(indexSpec.build())
+        for (className in definitionClasses) {
+            val stubClass = ClassName("$basePackageName.psi.stubs", "${className.simpleName()}Stub")
+            val indexSpec = FunSpec.builder("index${className.commonName}")
+                    .receiver(IndexSink::class)
+                    .addParameter("stubs", stubClass)
+
+            indexSpec.addStatement("indexDefinitionStub(stubs)")
+            if (className in namedElementClasses) {
+                indexSpec.addStatement("indexNamedStub(stubs)")
             }
+            if (className in classClasses) {
+                indexSpec.addStatement("indexGotoClass(stubs)")
+            }
+
+            addFunction(indexSpec.build())
         }
 
         writeToFile()

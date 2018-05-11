@@ -5,7 +5,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiReference
 import com.intellij.psi.PsiReferenceBase
 import com.squareup.kotlinpoet.*
-import org.nbkit.ScopeSpec
+import org.nbkit.lang.ScopeRule
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -13,7 +13,7 @@ class ReferenceSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeSpec>
+        scopeRules: List<ScopeRule>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override fun generate() {
         TypeSpec.interfaceBuilder(className)
@@ -60,13 +60,13 @@ class ReferenceSpec(
                                 .addCode(
                                         buildString {
                                             append("val newNameIdentifier = when (oldNameIdentifier) {\n")
-                                            for (className in (referableNames + referenceNames)) {
+                                            for (className in (referableClasses + referenceClasses)) {
                                                 append("    is %T -> factory.create${className.commonName}(name)\n")
                                             }
                                             append("    else -> return\n")
                                             append("}\n")
                                         }.trimMargin(),
-                                        *(referableNames + referenceNames).toTypedArray()
+                                        *(referableClasses + referenceClasses).toTypedArray()
                                 )
                                 .addStatement("")
                                 .addStatement("oldNameIdentifier.replace(newNameIdentifier)")

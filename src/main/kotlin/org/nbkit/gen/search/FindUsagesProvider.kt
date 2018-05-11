@@ -7,7 +7,7 @@ import com.intellij.psi.PsiElement
 import com.squareup.kotlinpoet.FunSpec
 import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.TypeSpec
-import org.nbkit.ScopeSpec
+import org.nbkit.lang.ScopeRule
 import org.nbkit.gen.BaseSpec
 import java.nio.file.Path
 
@@ -15,7 +15,7 @@ class FindUsagesProviderSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeSpec>
+        scopeRules: List<ScopeRule>
 ) : BaseSpec(fileNamePrefix, basePackageName, genPath, scopeRules) {
     override fun generate() {
         TypeSpec.classBuilder(className)
@@ -44,13 +44,13 @@ class FindUsagesProviderSpec(
                         .addStatement(
                                 buildString {
                                     append("return when (element) {\n")
-                                    for (className in definitionNames) {
+                                    for (className in definitionClasses) {
                                         append("    is %T -> \"${className.commonName.toLowerCase()}\"\n")
                                     }
                                     append("    else -> \"\"\n")
                                     append("}\n")
                                 }.trimMargin(),
-                                *definitionNames.toTypedArray()
+                                *definitionClasses.toTypedArray()
                         )
                         .build())
                 .addFunction(FunSpec.builder("getDescriptiveName")

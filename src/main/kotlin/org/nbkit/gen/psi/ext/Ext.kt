@@ -1,7 +1,7 @@
 package org.nbkit.gen.psi.ext
 
 import com.squareup.kotlinpoet.asClassName
-import org.nbkit.ScopeSpec
+import org.nbkit.lang.ScopeRule
 import org.nbkit.gen.SpecGroup
 import java.nio.file.Path
 
@@ -9,7 +9,7 @@ class ExtSpec(
         fileNamePrefix: String,
         basePackageName: String,
         genPath: Path,
-        scopeRules: List<ScopeSpec>
+        scopeRules: List<ScopeRule>
 ) : SpecGroup() {
     init {
         addSpec(ElementSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
