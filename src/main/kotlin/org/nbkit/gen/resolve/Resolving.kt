@@ -1,7 +1,7 @@
 package org.nbkit.gen.resolve
 
-import org.nbkit.lang.ScopeRule
 import org.nbkit.gen.SpecGroup
+import org.nbkit.lang.ScopeRule
 import java.nio.file.Path
 
 class ResolvingSpec(
@@ -12,7 +12,7 @@ class ResolvingSpec(
 ) : SpecGroup() {
     init {
         addSpec(ReferenceSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
-//        addSpec(ScopeProviderSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
+        addSpec(ScopeProviderSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
 //        addSpec(NamespaceProviderSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
     }
 }

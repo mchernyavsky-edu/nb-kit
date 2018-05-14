@@ -20,5 +20,8 @@ class RootSpec(
         addSpec(RefactoringSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
         addSpec(NavigationSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
         addSpec(SearchSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
+
+//        addSpec(ScopeProviderSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
+//        addSpec(NamespaceProviderSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
     }
 }

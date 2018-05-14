@@ -99,6 +99,7 @@ abstract class BaseSpec(
     protected val prevSiblingOfTypeFunction = ClassName("$NBKIT_PACKAGE_NAME.common.psi.ext", "prevSiblingOfType")
     protected val elementTypeProperty = ClassName("$NBKIT_PACKAGE_NAME.common.psi.ext", "elementType")
     protected val descendantOfTypeFunction = ClassName("$NBKIT_PACKAGE_NAME.common.psi.ext", "descendantOfType")
+    protected val childrenOfTypeFunction = ClassName("$NBKIT_PACKAGE_NAME.common.psi.ext", "childrenOfType")
 
     private val file: FileSpec.Builder by lazy {
         FileSpec.builder(packageName, className)
