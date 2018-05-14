@@ -13,10 +13,10 @@ class ExtSpec(
 ) : SpecGroup() {
     init {
         addSpec(ElementSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
-//        addSpec(NamedElementSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
+        addSpec(NamedElementSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
         addSpec(ReferenceElementSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
         addSpec(IdentifiersSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
-//        addSpec(DefinitionSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
+        addSpec(DefinitionSpec(fileNamePrefix, basePackageName, genPath, scopeRules))
 
         val definitionNames = scopeRules
                 .filter { it.isDefinition }

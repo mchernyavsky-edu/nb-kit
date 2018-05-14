@@ -23,7 +23,7 @@ repositories {
 }
 
 dependencies {
-    compile 'com.squareup:kotlinpoet:0.7.0'
+    compile files("libs/kotlinpoet.jar")
 }
 
 task wrapper(type: Wrapper) {
