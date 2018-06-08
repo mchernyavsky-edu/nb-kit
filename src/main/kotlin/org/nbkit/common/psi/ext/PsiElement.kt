@@ -19,8 +19,8 @@ inline fun <reified T : PsiElement> PsiElement.childOfType(): T? =
 inline fun <reified T : PsiElement> PsiElement.childrenOfType(stopAt: PsiElement? = null): Collection<T> =
         children.takeWhile { it !== stopAt }.filterIsInstance<T>()
 
-inline fun <reified T : PsiElement> Collection<PsiElement>.childrenOfType(): Collection<T> =
-        flatMap { it.children.filterIsInstance<T>() }
+inline fun <reified T : PsiElement> Collection<PsiElement>.childrenOfType(stopAt: PsiElement? = null): Collection<T> =
+        flatMap { it.children.takeWhile { it !== stopAt }.filterIsInstance<T>() }
 
 inline fun <reified T : PsiElement> PsiElement.descendantOfType(
         strict: Boolean = true

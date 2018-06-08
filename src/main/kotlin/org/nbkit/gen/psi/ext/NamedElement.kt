@@ -38,13 +38,13 @@ class NamedElementSpec(
                 .addFunction(FunSpec.builder("getNameIdentifier")
                         .addModifiers(KModifier.OVERRIDE)
                         .returns(elementClass.asNullable())
+                        .addStatement("%T()", ParameterizedTypeName.get(childrenOfTypeFunction, PsiElement::class.asClassName()))
                         .addStatement(buildString {
-                            append("return %T.findChildOfAnyType(this, true")
-                            repeat(referableClasses.size + referenceClasses.size)  {
-                                append(", %T::class.java")
-                            }
-                            append(")")
-                        }, PsiTreeUtil::class, *(referableClasses + referenceClasses).toTypedArray())
+                            append("return ")
+                            append((1 .. referableClasses.size + referenceClasses.size).joinToString(" ?: ") {
+                                "childrenOfType<%T>().firstOrNull()"
+                            })
+                        }, *(referableClasses + referenceClasses).toTypedArray())
                         .build())
                 .addFunction(FunSpec.builder("getName")
                         .addModifiers(KModifier.OVERRIDE)

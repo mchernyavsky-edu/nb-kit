@@ -37,6 +37,18 @@ class ScopeRule(
             return strategy
         }
 
+        infix fun imports(who: ElementsLocator): ScopeStrategy {
+            val strategy = ImportElementsStrategy(who)
+            strategies.add(strategy)
+            return strategy
+        }
+
+        infix fun importsSeq(who: ElementsLocator): ScopeStrategy {
+            val strategy = ImportElementsStrategy(who, sequentially = true)
+            strategies.add(strategy)
+            return strategy
+        }
+
         infix fun delegates(other: ScopeStrategy) {
             strategies = mutableListOf(other)
         }
